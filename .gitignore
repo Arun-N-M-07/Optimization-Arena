@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Dependencies
+node_modules/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Build / deploy artefacts
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.vercel/
+supabase/.temp/
+
+# Local tooling / OS
+.claude/settings.local.json
+.DS_Store
+npm-debug.log*
