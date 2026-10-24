@@ -1,6 +1,8 @@
 # Known limitations (honest list)
 **Blocked / external**
-- **No real code execution.** No isolated sandbox provider has been selected, configured or verified. The judge is `disabled` (default) or `mock`. Code correctness and performance are therefore not judged; code points are 0 by default and never awarded for mock/disabled results.
+- **NOT DEPLOYED.** Needs your Railway, Vercel and GitHub authorizations; exact steps in DEPLOYMENT.md. Container image build and every hosted behaviour (live URLs, Realtime over the public domain, CSP on the real domain, worker on Railway) are **NOT TESTED**.
+- **Supabase Auth sign-in rate limit** (per IP) will lock out a large lab unless raised — see DEPLOYMENT.md §4b.
+- **No real code execution (BLOCKED, see SANDBOX.md).** No isolated sandbox provider has been selected, configured or verified. The judge is `disabled` (default) or `mock`. Code correctness and performance are therefore not judged; code points are 0 by default and never awarded for mock/disabled results.
 - **Not deployed.** Vercel project/Python function/rewrite are unconfigured; Vercel MCP was never connected. Nothing has been pushed to GitHub.
 - Hobby-plan suitability for an event is unconfirmed (non-commercial restriction).
 

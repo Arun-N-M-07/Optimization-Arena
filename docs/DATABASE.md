@@ -9,6 +9,8 @@ Migrations (`supabase/migrations/`, applied in order to the Supabase project, ne
 | 3 | actor_fk_set_null | deleting an account keeps its history (`ON DELETE SET NULL`) |
 | 4 | workspace_review_scoring | `code_drafts`, `judge_assignments`, `manual_scores`; submission immutability trigger; evaluation fields; **RESTRICTIVE** judge-scope policies; Realtime publication |
 | 5 | hot_path_indexes | additive covering indexes for FK lookups on submissions/reports/drafts/adjustments |
+| 6 | least_privilege_grants | revoke all write privileges from `anon`/`authenticated` on every table; `anon` may only read the two public tables |
+| 7 | session_timeouts | role-level `idle_in_transaction_session_timeout=60s`, `lock_timeout=15s` (belt-and-braces; the API also sets them on every connection because the pooler reuses sessions) |
 
 Key invariants enforced in the database: unique team numbers; ≤ 3 members; one variant per category per team; unique `(team, idempotency_key)` for submissions; submissions cannot be updated; submitted reports cannot be edited; at most one AI evaluation per report+version; marks ≤ 5 per criterion; manual scores within bounds; `ends_at > starts_at`.
 

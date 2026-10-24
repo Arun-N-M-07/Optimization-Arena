@@ -91,6 +91,8 @@ test("A1 admin: team, members, participant and judge accounts, questions, assign
   const { admin: email, participant, judge: judgeEmail } = state();
   await login(admin, email, /\/admin$/);
   await expect(admin.getByRole("heading", { name: "Admin overview" })).toBeVisible();
+  await expect(admin.getByText("System status")).toBeVisible();
+  await expect(admin.getByText(/Code judge:/)).toContainText("mock (not real)");          // the operator is told when verdicts are not real
 
   await nav(admin, "Teams");
   await admin.getByLabel("Team number").fill(TEAM_NO);

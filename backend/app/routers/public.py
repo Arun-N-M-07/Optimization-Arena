@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 
 from .. import scoring
+from ..pubcache import cached
 from ..db import admin_tx, rows
 from ..rounds import session
 
@@ -10,6 +11,10 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 
 @router.get("/state")
 def state():
+    return cached("state", _state)
+
+
+def _state():
     with admin_tx() as c:
         s = {}
         for n in (1, 2):
@@ -23,6 +28,10 @@ def state():
 def leaderboard(round: str = "1"):
     if round not in ("1", "2", "final"):
         raise HTTPException(422, "round must be 1, 2 or final")
+    return cached(("lb", round), lambda: _leaderboard(round))
+
+
+def _leaderboard(round: str):
     with admin_tx() as c:
         if round == "final":
             if not (session(c, 1)["results_published"] and session(c, 2)["results_published"]):

@@ -99,6 +99,9 @@ _PROVIDERS = {"disabled": DisabledProvider, "mock": MockProvider}
 
 def get_provider() -> JudgeProvider:
     name = os.getenv("JUDGE_PROVIDER", "disabled").lower()
+    if name == "judge0":     # imported lazily: it is optional and unverified (see judge0_provider.py)
+        from .judge0_provider import Judge0Provider
+        return Judge0Provider()
     return _PROVIDERS.get(name, DisabledProvider)()
 
 

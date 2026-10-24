@@ -2,6 +2,8 @@
 import csv
 import io
 import json
+import os
+import time
 from typing import Literal
 from uuid import UUID
 
@@ -10,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from .. import evaluation, scoring
+from .. import evaluation, pubcache, scoring
 from ..auth import CurrentUser, require_roles
 from ..db import admin_tx, audit, map_db_error, one, rows
 from ..rounds import session
@@ -41,6 +43,7 @@ class RoundConfig(BaseModel):
 
 
 def _view(r: dict) -> dict:
+    pubcache.changed()
     return {k: r[k] for k in ("round", "state", "starts_at", "ends_at", "server_now", "results_published", "finalists_locked", "config")}
 
 
@@ -222,6 +225,7 @@ def announce(body: AnnouncementIn, user: CurrentUser = Depends(admin)):
         a = one(c, "insert into public.contest_announcements (round, message, created_by) values (:r, :m, :u) returning id, round, message, created_at",
                 r=body.round, m=body.message.strip(), u=str(user.id))
         audit(c, user, "announcement.create", "announcement", a["id"], {"round": body.round})
+        pubcache.changed()
         return a
 
 
@@ -231,6 +235,7 @@ def delete_announcement(aid: UUID, user: CurrentUser = Depends(admin)):
         if not one(c, "delete from public.contest_announcements where id = :i returning id", i=str(aid)):
             raise HTTPException(404, "Announcement not found")
         audit(c, user, "announcement.delete", "announcement", aid)
+        pubcache.changed()
 
 
 # ---------------- monitoring ----------------
@@ -367,3 +372,28 @@ def export_submissions(round: int = 1, user: CurrentUser = Depends(admin)):
     d = submissions(round, user)
     return _csv(f"submissions-round-{round}", ["team_number", "team_name", "category", "question", "variant", "finals", "last_final_at", "outcome", "provider", "report_status"],
                 [[r["team_number"], r["team_name"], r["category"], r["title"], r["label"], r["finals"], r["last_final_at"], r["outcome"], r["provider"], r["report_status"]] for r in d])
+
+
+# ---------------- operations / monitoring ----------------
+@router.get("/ops/status")
+def ops_status(user: CurrentUser = Depends(admin)):
+    """What an operator needs on competition day: is the DB healthy, is evaluation keeping up, which risky modes are on."""
+    t0 = time.perf_counter()
+    with admin_tx() as c:
+        c.execute(text("select 1"))
+        db_ms = round((time.perf_counter() - t0) * 1000)
+        ev = one(c, """select count(*) filter (where status = 'PENDING') as pending, count(*) filter (where status = 'FAILED') as failed,
+                              count(*) filter (where status = 'COMPLETED') as completed,
+                              coalesce(extract(epoch from now() - min(created_at) filter (where status in ('PENDING', 'FAILED')))::int, 0) as oldest_waiting_seconds
+                       from public.report_evaluations where source = 'AI'""")
+        errors = rows(c, "select error, count(*) as n from public.report_evaluations where source = 'AI' and status = 'FAILED' group by error order by n desc limit 5")
+        recent = one(c, "select count(*) as n from public.audit_logs where created_at > now() - interval '10 minutes'")
+    judge = os.getenv("JUDGE_PROVIDER", "disabled")
+    return {"database_ms": db_ms, "evaluations": ev, "evaluation_errors": errors, "admin_actions_last_10_min": recent["n"],
+            "judge_provider": judge, "judge_is_real": judge == "judge0", "evaluation_mode": os.getenv("EVALUATION_MODE", "background"),
+            "gemini_configured": bool(os.getenv("GEMINI_API_KEY")),
+            "warnings": [w for w in (
+                "Code execution is NOT real: results are not correctness verdicts." if judge != "judge0" else None,
+                f"{ev['failed']} AI evaluation(s) failed; retry from Round 1 → Report evaluations." if ev["failed"] else None,
+                f"AI evaluations have waited {ev['oldest_waiting_seconds']//60} min." if ev["oldest_waiting_seconds"] > 600 else None,
+                "Evaluation mode is 'worker' but no recent completions; check the worker service." if os.getenv("EVALUATION_MODE") == "worker" and ev["pending"] and ev["oldest_waiting_seconds"] > 120 else None) if w]}

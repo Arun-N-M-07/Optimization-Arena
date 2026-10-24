@@ -22,6 +22,7 @@ export default defineConfig({
       url: "http://127.0.0.1:8010/api/health",
       reuseExistingServer: true,
     },
-    { command: "npm run dev", url: "http://localhost:3000", reuseExistingServer: true, timeout: 120_000 },
+    // Production build, not the dev server: the real CSP and optimisations are what get tested.
+    { command: "npm run build && npm run start", url: "http://localhost:3000", reuseExistingServer: true, timeout: 300_000 },
   ],
 });

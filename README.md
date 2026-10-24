@@ -4,7 +4,7 @@ Competition platform for a college code-optimization event: **Round 1 · Legacy 
 
 **Stack:** Next.js (App Router, TypeScript, Tailwind, Monaco) · FastAPI + SQLAlchemy · Supabase (Postgres, Auth, Realtime, RLS) · Gemini (`gemini-3.5-flash-lite`, report evaluation only).
 
-> **Important:** no real code execution exists. The judge is `disabled` (default) or a clearly labelled `mock`; see [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). Nothing is deployed or pushed.
+> **Important:** real code execution is **BLOCKED** (no sandbox provider configured; see [docs/SANDBOX.md](docs/SANDBOX.md)). The judge is `disabled` (default) or a clearly labelled `mock` (refused in production). Deployment steps are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md); competition-day procedure in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ## Setup
 1. `cp .env.example .env` and fill it in locally (never commit `.env`). `DATABASE_URL` must be the Supabase **Session pooler** URL (the direct host is IPv6-only).
@@ -17,6 +17,7 @@ Competition platform for a college code-optimization event: **Round 1 · Legacy 
 ```
 cd backend && ../.venv/bin/python -m uvicorn app.main:app --port 8010      # API   (OpenAPI at /docs)
 cd web && npm run dev                                                      # Web   http://localhost:3000 (proxies /api/* to 8010)
+cd backend && ../.venv/bin/python -m app.worker                             # optional evaluation worker (EVALUATION_MODE=worker)
 ```
 For local demos set `JUDGE_PROVIDER=mock` in `.env` to see labelled mock results. Port 8000 is not used here on purpose.
 

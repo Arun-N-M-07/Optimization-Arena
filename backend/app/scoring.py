@@ -10,6 +10,7 @@ from decimal import Decimal
 from sqlalchemy import text
 
 from .db import one, rows
+from .settings_check import REAL_JUDGES
 
 DEFAULT_CONFIG = {"code_points_per_question": 0, "tiebreak": "none"}
 
@@ -59,8 +60,8 @@ def compute_scores(conn, rnd: int) -> list[dict]:
                      where s.kind = 'FINAL' and %s order by s.team_id, s.variant_id, s.created_at desc)
         select fin.team_id, fin.created_at,
                exists (select 1 from public.execution_results e where e.submission_id = fin.id
-                       and e.outcome = 'ACCEPTED' and coalesce(e.provider, '') not in ('mock', 'disabled')) as accepted
-        from fin""" % cat_filter, r=rnd):
+                       and e.outcome = 'ACCEPTED' and e.provider = any(:real)) as accepted
+        from fin""" % cat_filter, r=rnd, real=sorted(REAL_JUDGES)):
         t = by.get(str(r["team_id"]))
         if t:
             if r["accepted"]:

@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from typing import Callable
 from uuid import UUID
 
+import hashlib
+import os
+import time
+
 import httpx
 from fastapi import Depends, Header, HTTPException, status
 
@@ -75,13 +79,45 @@ def get_gateway() -> SupabaseGateway:
     return SupabaseGateway(get_settings())
 
 
+# Validated identities are cached briefly: each validation costs two network round trips to Supabase (measured ~240 ms
+# each from the API host's region), which dominated request latency. Trade-off: a revoked session or changed role is
+# honoured within AUTH_CACHE_SECONDS (default 30, 0 disables) instead of instantly.
+_cache: dict[str, tuple[float, "CurrentUser"]] = {}
+_CACHE_MAX = 5000
+
+
+def _ttl() -> float:
+    try:
+        return float(os.getenv("AUTH_CACHE_SECONDS", "30"))
+    except ValueError:
+        return 0.0
+
+
+def clear_auth_cache() -> None:
+    _cache.clear()
+
+
 def current_user(
     authorization: str | None = Header(default=None),
     gateway: SupabaseGateway = Depends(get_gateway),
 ) -> CurrentUser:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
-    auth_user = gateway.get_auth_user(authorization[7:].strip())
+    key = hashlib.sha256(authorization[7:].strip().encode()).hexdigest()
+    now, ttl = time.monotonic(), _ttl()
+    hit = _cache.get(key)
+    if hit and ttl > 0 and now - hit[0] < ttl:
+        return hit[1]
+    user = _load_user(authorization[7:].strip(), gateway)
+    if ttl > 0:                       # only successful validations are cached; failures always re-check
+        if len(_cache) >= _CACHE_MAX:
+            _cache.clear()
+        _cache[key] = (now, user)
+    return user
+
+
+def _load_user(token: str, gateway: SupabaseGateway) -> CurrentUser:
+    auth_user = gateway.get_auth_user(token)
     if not auth_user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired session")
     profile = gateway.get_profile(auth_user["id"])

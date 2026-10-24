@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
+from .. import pubcache
 from ..auth import CurrentUser, require_roles
 from ..db import admin_tx, audit, map_db_error, one, rows
 
@@ -135,4 +136,5 @@ def start_round(body: StartIn = StartIn(), user: CurrentUser = Depends(admin)):
                       ends_at = now() + make_interval(mins => :m) where round = 1
                       returning state::text as state, starts_at, ends_at""", m=body.duration_minutes)
         audit(c, user, "round.start", "round", 1, {"duration_minutes": body.duration_minutes})
+        pubcache.changed()
         return s

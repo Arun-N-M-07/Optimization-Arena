@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import text
 
 from ..auth import CurrentUser, require_roles
+from .. import pubcache
 from ..db import admin_tx, audit, one, rows
 
 router = APIRouter(prefix="/api/judge", tags=["judge"])
@@ -41,6 +42,7 @@ class ReviewIn(BaseModel):
 def bump(conn):
     """Touch contest sessions so Realtime subscribers refetch scores/leaderboards."""
     conn.execute(text("update public.contest_sessions set updated_at = now()"))
+    pubcache.changed()
 
 
 def _authorize_team(conn, user: CurrentUser, team_id) -> None:

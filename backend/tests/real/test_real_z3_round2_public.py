@@ -42,6 +42,36 @@ def test_announcements(arena):
     assert arena.call("admin", "post", "/admin/announcements", {"message": ""}).status_code == 422
 
 
+def test_public_cache_is_never_stale_after_a_write_even_with_concurrent_pollers(arena):
+    """Regression: clearing the cache before commit let a poller re-cache old data. After each write returns, readers must see it."""
+    import threading
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    stop, c = threading.Event(), arena["client"]
+
+    def poll(n):
+        tc = TestClient(app)
+        while not stop.is_set():      # a distinct address per poller, ~5 req/s each: realistic, and below the per-caller rate limit
+            tc.get("/api/public/state", headers={"X-Forwarded-For": f"10.9.9.{n}"})
+            time.sleep(0.2)
+    ts = [threading.Thread(target=poll, args=(i,)) for i in range(4)]
+    [t.start() for t in ts]
+    try:
+        for i in range(4):
+            msg = f"ZZTEST race {i}"
+            a = arena.call("admin", "post", "/admin/announcements", {"message": msg})
+            assert a.status_code == 201
+            assert any(x["message"] == msg for x in c.get("/api/public/state").json()["announcements"]), f"stale public state after write {i}"
+            arena.call("admin", "delete", f"/admin/announcements/{a.json()['id']}")
+            assert all(x["message"] != msg for x in c.get("/api/public/state").json()["announcements"]), f"stale public state after delete {i}"
+    finally:
+        stop.set()
+        [t.join() for t in ts]
+
+
 def test_end_round1_stops_submissions_and_publishes_results(arena):
     r = arena.call("admin", "post", "/admin/rounds/1/end")
     assert r.status_code == 200 and r.json()["state"] == "ENDED"

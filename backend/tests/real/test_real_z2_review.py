@@ -191,11 +191,11 @@ def test_participants_cannot_write_through_postgrest(arena):
     d = httpx.post(f"{s.supabase_url}/rest/v1/code_drafts", headers=h, timeout=20, json={"team_id": arena["ta"], "variant_id": v, "language": "python", "code": "x"})
     assert d.status_code in (401, 403)
     up = httpx.patch(f"{s.supabase_url}/rest/v1/autopsy_reports?id=eq.{arena['report_dsa']}", headers=h, timeout=20, json={"inefficiency": "HACKED"})
-    assert up.status_code in (200, 204, 401, 403)
+    assert up.status_code in (401, 403)                                                                  # least-privilege grants: a hard denial, not just "0 rows"
     assert _count("select inefficiency from public.autopsy_reports where id = :r", r=arena["report_dsa"]) == SECTIONS["inefficiency"]     # unchanged
     sc = httpx.patch(f"{s.supabase_url}/rest/v1/manual_scores?team_id=eq.{arena['ta']}", headers=h, timeout=20, json={"marks": 10})
     assert _count("select marks from public.manual_scores where team_id = :t and component = 'viva'", t=arena["ta"]) == 8
-    assert sc.status_code in (200, 204, 401, 403)
+    assert sc.status_code in (401, 403)
 
 
 def test_invalid_tokens_and_malformed_requests(arena):
@@ -207,3 +207,19 @@ def test_invalid_tokens_and_malformed_requests(arena):
     assert c.post(f"/api/participant/variants/not-a-uuid/submit", json={"language": "python", "code": "x"}, headers=hdr(arena["pa"]["email"])).status_code == 422
     assert arena.call("pa", "get", "/admin/users").status_code == 403
     assert arena.call("judge1", "post", "/admin/rounds/1/end").status_code == 403
+
+
+def test_least_privilege_grants_anon_reads_two_public_tables_and_nothing_else():
+    s = get_settings()
+    anon = {"apikey": s.supabase_publishable_key}
+    for t in ("contest_sessions", "contest_announcements"):
+        assert httpx.get(f"{s.supabase_url}/rest/v1/{t}?select=*&limit=1", headers=anon, timeout=20).status_code == 200
+    for t in ("profiles", "teams", "questions", "question_variants", "question_private", "submissions", "autopsy_reports", "audit_logs", "manual_scores", "judge_assignments"):
+        assert httpx.get(f"{s.supabase_url}/rest/v1/{t}?select=*&limit=1", headers=anon, timeout=20).status_code in (401, 403), t
+    for t in ("contest_sessions", "contest_announcements", "teams"):       # anon writes are impossible everywhere
+        r = httpx.post(f"{s.supabase_url}/rest/v1/{t}", headers={**anon, "Content-Type": "application/json"}, json={}, timeout=20)
+        assert r.status_code in (401, 403), t
+    with admin_tx() as c:                                                  # and no browser role holds a write privilege on any table
+        n = c.execute(text("""select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r'
+                              and (has_table_privilege('anon', c.oid, 'insert,update,delete') or has_table_privilege('authenticated', c.oid, 'insert,update,delete'))""")).scalar()
+    assert n == 0

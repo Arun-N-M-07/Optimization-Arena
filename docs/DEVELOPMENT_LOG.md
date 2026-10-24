@@ -1,5 +1,21 @@
 # Development Log
 
+## Milestone 5 — Production readiness pass (2026-10-24)  — NOT DEPLOYED
+**Verified results (final working tree)**
+- Backend `pytest`: **127 passed** (real Supabase/Postgres/RLS/Gemini included). Vitest **34 passed**. `tsc`, `eslint`, `next build` clean.
+- Playwright **12 passed** against the **production build** (`next build && next start`, real CSP/headers, real Gemini, Realtime).
+- Production-mode API start verified locally against the real environment: fail-fast config, `/docs` 404, HSTS, `/api/ready` database true; refuses `JUDGE_PROVIDER=mock`. Worker started/stopped on SIGTERM. Lockfile installs and imports on a clean Python 3.13 venv.
+- Built client bundle scanned for the Supabase secret key, Gemini key, DB URL and password: none. Full git history scanned (pattern + exact values): none.
+- Supabase: remote migrations match local files 1–7; RLS on all tables; `anon` reads 2 tables, no browser role can write (migration 6); Realtime publication correct; advisors reviewed.
+
+**Real defects found by testing/measurement and fixed**: orphaned `idle in transaction` session held a report-row lock 16+ min behind the pooler → per-connection `idle_in_transaction_session_timeout`/`lock_timeout` (+ migration 7, + tested on the real DB); public-cache invalidation raced with committing writers and with slow readers → clear after commit + generation counter (tested); per-request latency dominated by round trips → token cache, idle-only connection pings, single-statement role setup (autosave p50 1250→675 ms); unhandled upstream/DB errors → 503; error text could carry SQL parameters → hidden; unfiltered public endpoints → cached.
+
+**Findings that need you (not fixable in code)**: Supabase Auth sign-in rate limit per IP will lock out a large lab (raise it); host the API in the Supabase region; sandbox provider decision (SANDBOX.md); Railway/Vercel/GitHub authorizations (DEPLOYMENT.md).
+
+**Environment note**: one full run was invalidated by this machine's network dropping (DNS failures); data left behind was removed by name pattern and the suite rerun green.
+
+**Not done / NOT TESTED**: real code execution (BLOCKED); hosted deploy, container image build (no Docker daemon), live URLs; load at event scale (24 concurrent synthetic participants max, local API → remote DB); DBMS/PostgreSQL judging.
+
 ## Milestone 4 — Workspace, judging abstraction, Gemini, review, Round 2, public views (2026-10-24)
 **Recovered** from an interrupted session: the earlier `F` was a network interruption that left test data behind; removed only `ZZ …` teams / `arena-test-…` users, baseline then 27/27.
 

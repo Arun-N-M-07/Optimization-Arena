@@ -244,6 +244,7 @@ def submit_report(variant_id: UUID, background: BackgroundTasks, user: CurrentUs
                 report = _latest_report(c, team, variant_id)
         elif mode == "background":
             background.add_task(evaluation.run_job, job)
+        # worker / manual: the persisted PENDING job is processed by the worker process or by an admin
     return {"report": report, "already_submitted": False}
 
 
