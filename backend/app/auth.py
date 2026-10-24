@@ -52,6 +52,27 @@ class SupabaseGateway:
         return rows[0] if rows else None
 
 
+    def create_auth_user(self, email: str, password: str, full_name: str) -> str:
+        r = httpx.post(
+            f"{self.s.supabase_url}/auth/v1/admin/users",
+            headers={"apikey": self.s.supabase_secret_key, "Authorization": f"Bearer {self.s.supabase_secret_key}"},
+            json={"email": email, "password": password, "email_confirm": True,
+                  "user_metadata": {"full_name": full_name}},
+            timeout=15,
+        )
+        if r.status_code in (409, 422):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Could not create that account (email may already exist)")
+        r.raise_for_status()
+        return r.json()["id"]
+
+    def delete_auth_user(self, user_id: str) -> None:
+        httpx.delete(
+            f"{self.s.supabase_url}/auth/v1/admin/users/{user_id}",
+            headers={"apikey": self.s.supabase_secret_key, "Authorization": f"Bearer {self.s.supabase_secret_key}"},
+            timeout=15,
+        )
+
+
 def get_gateway() -> SupabaseGateway:
     return SupabaseGateway(get_settings())
 
