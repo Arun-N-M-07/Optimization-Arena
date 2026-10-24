@@ -1,13 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import CurrentUser, require_roles
-from ..db import one, rows, user_tx
+from ..db import admin_tx, one, rows, user_tx
+from ..rounds import VISIBLE_STATES, session
 
 router = APIRouter(prefix="/api/participant", tags=["participant"])
 participant = require_roles("PARTICIPANT")
 
-# Round 1 content becomes visible only once the round has started.
-VISIBLE_STATES = ("RUNNING", "PAUSED", "ENDED", "RESULTS_PUBLISHED")
+
+def _slim(s: dict) -> dict:
+    return {"state": s["state"], "starts_at": s["starts_at"], "ends_at": s["ends_at"], "results_published": s["results_published"]}
 
 
 @router.get("/team")
@@ -24,18 +26,22 @@ def my_team(user: CurrentUser = Depends(participant)):
 
 @router.get("/questions")
 def my_questions(user: CurrentUser = Depends(participant)):
+    """Assigned questions (rounds 1 and 2). A round's content stays hidden until that round has started."""
     if not user.team_id:
         raise HTTPException(404, "Your account is not linked to a team yet")
     with user_tx(user) as c:
-        sess = one(c, "select state::text as state, starts_at, ends_at from public.contest_sessions where round = 1")
-        if sess["state"] not in VISIBLE_STATES:
-            return {"round": sess, "questions": []}
+        sess = {n: session(c, n) for n in (1, 2)}
         # Explicit column list: only participant-safe fields, and question_private is never joined.
-        qs = rows(c, """select a.category::text as category, q.id as question_id, q.title, q.difficulty,
+        qs = rows(c, """select q.round, a.category::text as category, q.id as question_id, q.title, q.difficulty,
                                v.id as variant_id, v.label, v.description, v.expected_behavior, v.constraints,
-                               v.languages, v.original_code, v.visible_tests
+                               v.languages, v.original_code, v.visible_tests,
+                               (select count(*) from public.submissions s where s.variant_id = v.id and s.team_id = a.team_id and s.kind = 'FINAL') as finals,
+                               (select r.status::text from public.autopsy_reports r where r.variant_id = v.id and r.team_id = a.team_id
+                                order by r.version desc limit 1) as report_status
                         from public.question_assignments a
                         join public.question_variants v on v.id = a.variant_id
                         join public.questions q on q.id = v.question_id
-                        order by a.category""")
-        return {"round": sess, "questions": qs}
+                        where a.team_id = :t order by q.round, a.category""", t=str(user.team_id))
+        qs = [q for q in qs if sess[q["round"]]["state"] in VISIBLE_STATES]
+        return {"server_now": sess[1]["server_now"], "round": _slim(sess[1]),
+                "rounds": {str(n): _slim(s) for n, s in sess.items()}, "questions": qs}

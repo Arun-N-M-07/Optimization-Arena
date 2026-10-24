@@ -16,11 +16,12 @@ LANGUAGES = {
     "DSA": {"c", "cpp", "java", "python"},
     "OOP": {"cpp", "java", "python"},
     "DBMS": {"sql"},
+    "DUEL": {"c", "cpp", "java", "python"},
 }
 
 
 class QuestionIn(BaseModel):
-    category: str = Field(pattern="^(DSA|OOP|DBMS)$")
+    category: str = Field(pattern="^(DSA|OOP|DBMS|DUEL)$")
     title: str = Field(min_length=1, max_length=200)
     difficulty: str = Field(default="EASY", pattern="^(EASY|MEDIUM)$")
 
@@ -76,7 +77,7 @@ def create_question(body: QuestionIn, user: CurrentUser = Depends(admin)):
     try:
         with admin_tx() as c:
             q = one(c, "insert into public.questions (round, category, title, difficulty) "
-                       "values (1, cast(:cat as public.question_category), :t, :d) returning *",
+                       "values (case when cast(:cat as text) = 'DUEL' then 2 else 1 end, cast(:cat as public.question_category), :t, :d) returning *",
                     cat=body.category, t=body.title.strip(), d=body.difficulty)
             audit(c, user, "question.create", "question", q["id"], body.model_dump())
             return q

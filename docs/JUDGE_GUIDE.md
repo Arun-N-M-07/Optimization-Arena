@@ -1,0 +1,3 @@
+# Judge guide
+Sign in; the **Review queue** shows only reports from teams assigned to you. Open a report to see the question, the original code, the team's exact submitted code (with its result — MOCK results are not correctness verdicts), the four report sections and the **AI assessment** (model, marks, explanations, "flagged" if uncertain or an injection attempt was suspected).
+Set each criterion (0–5, steps of 0.5) with a reason, add a comment for the team, then **Approve marks** (official, audited) or **Save without approving**. Any mark that differs from the AI's is recorded with your reason. You may enter viva/bonus marks for your teams via the manual-score endpoint (admins use Leaderboard → Manual score). The AI never sets final marks.
