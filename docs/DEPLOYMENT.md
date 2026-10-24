@@ -10,8 +10,8 @@ Browser ────────────────────────
 ```
 Same-origin `/api` means no CORS (the API deliberately has none). Hosting facts checked in Vercel docs (Oct 2026): FastAPI supported, Hobby = **non-commercial personal use only**, function max 300 s. Vercel is used for the **frontend only**; the backend needs a long-lived process for the worker, so it runs on a container host (Railway chosen; Judge0 can *not* run there — see SANDBOX.md).
 
-## 1. GitHub
-`git push -u origin main` (no force). Verify afterwards that `.env` is not in the repo.
+## 1. GitHub — DONE
+`main` is pushed (commit `089131d` and ancestors; no force). The history was scanned for secrets before pushing. Keep pushing normally; never force-push.
 
 ## 2. Supabase (existing project — do not create another)
 - Migrations 1–6 are already applied (`supabase/migrations/`). For any future change apply only new additive files.
