@@ -13,3 +13,10 @@
 - Genuinely expired JWTs were not generated (forged/garbage tokens are tested).
 - Visual QA covers desktop and one mobile width for the screens inspected, not every screen at every width.
 - Backend uses SQLAlchemy with SQL text, not ORM models.
+
+**Operational notes**
+- The last ≤1.5 s of typing can be lost if a tab is force-closed instantly; normal close/reload prompts the browser's "unsaved changes" guard.
+- AI evaluation depends on Gemini availability; failures are visible to admins, retryable, and never block participants. On serverless hosts set `EVALUATION_MODE=inline` or `manual` (default `background` needs a long-lived server).
+- Database/Auth network blips surface as retryable 503s; token validation calls Supabase on every request (no cache), which costs latency but keeps revocation immediate.
+- The e2e Gemini step makes real API calls; model output varies, so tests assert validity and broad ranges only.
+- Supabase Realtime is a hint; if it is down, pages refresh by polling every 10–15 s.

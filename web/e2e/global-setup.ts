@@ -6,5 +6,6 @@ export default async function setup() {
   const admin = `e2e-admin-${stamp}@example.com`;
   const participant = `e2e-part-${stamp}@example.com`;
   const id = await createUser(admin, "ADMIN");
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ users: [id], emails: [participant], admin, participant }));
+  const judge = `e2e-judge-${stamp}@example.com`;
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ users: [id], emails: [participant, judge], admin, participant, judge }));
 }

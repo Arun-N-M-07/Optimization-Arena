@@ -42,10 +42,15 @@ def compute_scores(conn, rnd: int) -> list[dict]:
             from latest l left join rev on rev.report_id = l.id"""):
             t = by.get(str(r["team_id"]))
             if t:
-                t["reports_total"] += 1
                 if r["reviewed"]:
                     t["reports_reviewed"] += 1
                     t["report"] += _f(r["marks"])
+    if rnd == 1:   # approvals are shown out of the reports the team is expected to write (its assigned questions), not just those submitted
+        for r in rows(conn, """select a.team_id, count(*) as n from public.question_assignments a join public.question_variants v on v.id = a.variant_id
+                               join public.questions q on q.id = v.question_id where q.round = 1 group by a.team_id"""):
+            t = by.get(str(r["team_id"]))
+            if t:
+                t["reports_total"] = r["n"]
     points = _f(cfg.get("code_points_per_question"))
     for r in rows(conn, """
         with fin as (select distinct on (s.team_id, s.variant_id) s.id, s.team_id, s.created_at

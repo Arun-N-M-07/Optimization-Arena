@@ -16,8 +16,12 @@ def _as(arena, who):
 
 
 def _set_deadline(minutes):
+    """minutes < 0 means 'already over'. Always keeps ends_at > starts_at (a DB check) even if the round started seconds ago."""
     with admin_tx() as c:
-        c.execute(text("update public.contest_sessions set ends_at = now() + make_interval(mins => :m) where round = 1"), {"m": minutes})
+        if minutes < 0:
+            c.execute(text("update public.contest_sessions set ends_at = starts_at + interval '1 millisecond' where round = 1"))
+        else:
+            c.execute(text("update public.contest_sessions set ends_at = now() + make_interval(mins => :m) where round = 1"), {"m": minutes})
 
 
 def test_questions_list_shows_own_variants_and_no_private_data(arena):

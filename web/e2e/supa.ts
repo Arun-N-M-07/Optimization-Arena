@@ -19,7 +19,8 @@ export async function cleanup() {
   const rest = (path: string, method: string, body?: unknown) => fetch(`${URL_}/rest/v1/${path}`, { method, headers: H, body: body ? JSON.stringify(body) : undefined });
   await rest("teams?name=like.E2E*", "DELETE");
   await rest("questions?title=like.E2E*", "DELETE");
-  await rest("contest_sessions?round=eq.1", "PATCH", { state: "DRAFT", starts_at: null, ends_at: null });
+  await rest("contest_announcements?message=like.E2E*", "DELETE");
+  await rest("contest_sessions?round=in.(1,2)", "PATCH", { state: "DRAFT", starts_at: null, ends_at: null, config: {}, finalists_locked: false, results_published: false });
   const ids: string[] = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, "utf8")).users : [];
   const emails: string[] = fs.existsSync(STATE_FILE) ? JSON.parse(fs.readFileSync(STATE_FILE, "utf8")).emails : [];
   // account created through the UI during the test

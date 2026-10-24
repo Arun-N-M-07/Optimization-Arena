@@ -26,3 +26,14 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export type Me = { id: string; email: string | null; role: "PARTICIPANT" | "ADMIN" | "JUDGE"; team_id: string | null };
+
+/** Downloads a CSV from an authenticated admin endpoint. */
+export async function downloadCsv(path: string, filename: string) {
+  const { data } = await createClient().auth.getSession();
+  const res = await fetch(`/api${path}`, { headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` } });
+  if (!res.ok) throw new ApiError(res.status, "Export failed");
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}

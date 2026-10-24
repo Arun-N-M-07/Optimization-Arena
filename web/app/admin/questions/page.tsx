@@ -8,7 +8,7 @@ import { errText, useLoad } from "@/lib/useLoad";
 type Variant = { id: string; label: string; status: string; languages: string[]; hidden_tests: unknown[] };
 type Question = { id: string; category: string; title: string; difficulty: string; status: string; variants: Variant[] };
 
-const LANGS: Record<string, string[]> = { DSA: ["c", "cpp", "java", "python"], OOP: ["cpp", "java", "python"], DBMS: ["sql"] };
+const LANGS: Record<string, string[]> = { DSA: ["c", "cpp", "java", "python"], OOP: ["cpp", "java", "python"], DBMS: ["sql"], DUEL: ["c", "cpp", "java", "python"] };
 
 export default function QuestionsPage() {
   const { data, error, reload } = useLoad<Question[]>("/admin/questions");
@@ -25,7 +25,7 @@ export default function QuestionsPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Questions</h1>
       <Card title="New question">
         <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/admin/questions", { method: "POST", body: JSON.stringify(q) }); setQ({ ...q, title: "" }); }); }}>
-          <div className="w-32"><label htmlFor="qc">Category</label><select id="qc" value={q.category} onChange={(e) => setQ({ ...q, category: e.target.value })}><option>DSA</option><option>OOP</option><option>DBMS</option></select></div>
+          <div className="w-32"><label htmlFor="qc">Category</label><select id="qc" value={q.category} onChange={(e) => setQ({ ...q, category: e.target.value })}><option>DSA</option><option>OOP</option><option>DBMS</option><option value="DUEL">DUEL (Round 2)</option></select></div>
           <div className="min-w-56 flex-1"><label htmlFor="qt">Title</label><input id="qt" required value={q.title} onChange={(e) => setQ({ ...q, title: e.target.value })} /></div>
           <div className="w-32"><label htmlFor="qd">Difficulty</label><select id="qd" value={q.difficulty} onChange={(e) => setQ({ ...q, difficulty: e.target.value })}><option>EASY</option><option>MEDIUM</option></select></div>
           <Button type="submit">Create question</Button>

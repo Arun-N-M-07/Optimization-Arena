@@ -20,7 +20,8 @@ export default function Home() {
           <p className="mt-2 text-sm text-muted">1:30 PM – 2:30 PM · 60 minutes. Finalists solve one common problem under the clock.</p>
         </div>
       </div>
-      <div><Link href="/login" className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong">Sign in</Link></div>
+      <div className="flex flex-wrap items-center gap-4"><Link href="/login" className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong">Sign in</Link>
+        <Link href="/leaderboard" className="text-sm text-muted hover:text-fg">Leaderboard</Link><Link href="/schedule" className="text-sm text-muted hover:text-fg">Schedule</Link><Link href="/rules" className="text-sm text-muted hover:text-fg">Rules</Link></div>
     </main>
   );
 }

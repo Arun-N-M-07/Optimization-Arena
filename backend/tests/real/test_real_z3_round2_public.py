@@ -116,7 +116,7 @@ def test_round2_only_finalists_same_problem_and_server_deadline(arena):
     assert arena.call("admin", "put", "/admin/rounds/2/config", {"variant_id": arena["vb"]["DSA"]}).status_code in (409, 422)
     # the server clock decides the deadline, whatever the browser says
     with admin_tx() as c:
-        c.execute(text("update public.contest_sessions set ends_at = now() - interval '1 second' where round = 2"))
+        c.execute(text("update public.contest_sessions set ends_at = starts_at + interval '1 millisecond' where round = 2"))
     late = arena.call("pa", "post", f"/participant/variants/{D}/submit", {"language": "python", "code": "print(2)"})
     assert late.status_code == 409
     assert arena.call("pa", "get", "/participant/questions").json()["rounds"]["2"]["state"] == "ENDED"

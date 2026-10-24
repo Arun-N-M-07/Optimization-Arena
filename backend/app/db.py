@@ -30,8 +30,10 @@ def get_engine() -> Engine:
     if not get_settings().database_url:
         raise RuntimeError("DATABASE_URL is not configured")
     # prepare_threshold=None: safe with Supabase pooler (no server-side prepared statements).
-    return create_engine(url, pool_size=5, max_overflow=5, pool_pre_ping=True, pool_recycle=300,
-                         connect_args={"prepare_threshold": None, "connect_timeout": 10})
+    # TCP keepalives + short recycle keep pooler connections from going stale between requests.
+    return create_engine(url, pool_size=5, max_overflow=5, pool_pre_ping=True, pool_recycle=120,
+                         connect_args={"prepare_threshold": None, "connect_timeout": 10, "keepalives": 1,
+                                       "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3})
 
 
 @contextmanager

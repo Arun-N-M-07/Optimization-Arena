@@ -138,7 +138,7 @@ def test_official_score_is_computed_by_backend_from_approved_reviews_only(arena)
     rows = arena.call("admin", "get", "/admin/leaderboard?round=1").json()["rows"]
     a = next(r for r in rows if r["team_number"] == arena["n1"])
     b = next(r for r in rows if r["team_number"] == arena["n2"])
-    assert a["report"] == 15.5 and a["reports_reviewed"] == 1 and a["reports_total"] == 2           # DBMS report still unreviewed
+    assert a["report"] == 15.5 and a["reports_reviewed"] == 1 and a["reports_total"] == 3           # out of the 3 assigned reports; DBMS is submitted but unreviewed, OOP not reviewed
     assert b["report"] == 0 and a["rank"] == 1 and b["rank"] == 2
     assert arena.call("pa", "get", "/admin/leaderboard").status_code == 403
     assert arena.call("judge1", "get", "/admin/leaderboard").status_code == 403
