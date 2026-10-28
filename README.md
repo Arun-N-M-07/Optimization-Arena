@@ -7,7 +7,7 @@ Competition platform for a college code-optimization event: **Round 1 · Legacy 
 > **Important:** real code execution is **BLOCKED** (no sandbox provider configured; see [docs/SANDBOX.md](docs/SANDBOX.md)). The judge is `disabled` (default) or a clearly labelled `mock` (refused in production). Deployment steps are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md); competition-day procedure in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ## Setup
-1. `cp .env.example .env` and fill it in locally (never commit `.env`). `DATABASE_URL` must be the Supabase **Session pooler** URL (the direct host is IPv6-only).
+1. `cp .env.example .env` and fill it in locally (never commit `.env`). `DATABASE_URL` must be a Supabase **pooler** URL (the direct host is IPv6-only): the Session pooler (5432) is fine locally; the Vercel deployment uses the **Transaction pooler** (6543) — see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 2. `python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt`
 3. `cd web && npm install --legacy-peer-deps`
 4. Migrations in `supabase/migrations/` are already applied to the project; for a fresh project apply them in order.
@@ -17,7 +17,7 @@ Competition platform for a college code-optimization event: **Round 1 · Legacy 
 ```
 cd backend && ../.venv/bin/python -m uvicorn app.main:app --port 8010      # API   (OpenAPI at /docs)
 cd web && npm run dev                                                      # Web   http://localhost:3000 (proxies /api/* to 8010)
-cd backend && ../.venv/bin/python -m app.worker                             # optional evaluation worker (EVALUATION_MODE=worker)
+cd backend && ../.venv/bin/python -m app.worker                             # optional; only for container hosts (EVALUATION_MODE=worker). Not used on Vercel
 ```
 For local demos set `JUDGE_PROVIDER=mock` in `.env` to see labelled mock results. Port 8000 is not used here on purpose.
 

@@ -11,7 +11,7 @@
 ## During Round 1 (9:30–12:00)
 - Start: Assignments → **Start Round 1** (locks assignments; server timer starts, 150 min).
 - Watch: Admin overview (System status, submissions, pending evaluations) and Round 1 → Submission monitor.
-- AI evaluation: reports are queued the moment teams submit. If "failed" appears: Round 1 → Report evaluations → **Retry** (safe, never double-scores). If the worker is down (warning "no recent completions"): restart `arena-worker` on Railway; jobs are persisted and resume.
+- AI evaluation: reports are queued the moment teams submit. If "failed" appears: Round 1 → Report evaluations → **Retry** (safe, never double-scores). Participants of a failed one see "evaluation delayed — nothing to resubmit". After a burst or an outage press **Run pending now** until it reports nothing waiting (each press does a bounded batch; jobs are persisted and never double-scored).
 - Announcements: Announcements page; they appear live on every screen.
 - **Stop everything now:** Round 1 → **End round now**. Effective immediately on the server for drafts, runs, submissions and reports.
 - Browser trouble: drafts autosave every ~1.5 s and survive refresh; the editor falls back to a plain text box if Monaco cannot load.
@@ -29,8 +29,8 @@ End Round 2 → manual scores if used → **Publish results** → projector show
 | Symptom | Action |
 |---|---|
 | Users see "database temporarily unavailable" | Transient; clients retry. Check Supabase status and `/api/ready`. Nothing is lost (writes are transactional). |
-| `/api/ready` 503 | DB unreachable: check Supabase, `DATABASE_URL` (Session pooler). Liveness `/api/health` stays green by design. |
-| Evaluations stuck | Admin overview warning → worker logs on Railway → restart worker; use Retry/Run pending. |
+| `/api/ready` 503 | DB unreachable: check Supabase and `DATABASE_URL` (Transaction pooler, port 6543). Liveness `/api/health` stays green by design. |
+| Evaluations stuck | Admin overview warning → Round 1 → Report evaluations → Retry, or **Run pending now** (repeat until nothing is waiting). A job whose function was killed becomes claimable again after 5 minutes. |
 | Gemini quota/outage | Reports are still saved; judges can review and approve manually without an AI assessment. |
 | Wrong mark published | Judge/admin re-reviews (new approved review supersedes; history kept); unpublish → fix → republish. |
 | Requests hang/time out on one report or team | A stuck session may hold a row lock; Postgres ends idle-in-transaction sessions after 60 s on its own. Check Supabase → Reports → Database for long transactions. |

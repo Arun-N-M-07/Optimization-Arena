@@ -19,7 +19,7 @@ def validate(s: Settings) -> list[str]:
         if not val:
             problems.append(f"{name} is not set")
     if s.database_url and "pooler.supabase.com" not in s.database_url:
-        problems.append("DATABASE_URL should be the Supabase Session pooler URL (the direct host is IPv6-only)")
+        problems.append("DATABASE_URL should be a Supabase pooler URL (Transaction pooler, port 6543, on Vercel; the direct host is IPv6-only)")
     if not s.supabase_secret_key.startswith("sb_secret_") and s.supabase_secret_key:
         problems.append("SUPABASE_SECRET_KEY does not look like a Supabase secret key")
     judge = os.getenv("JUDGE_PROVIDER", "disabled").lower()
