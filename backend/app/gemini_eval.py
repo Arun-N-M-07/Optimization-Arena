@@ -16,6 +16,13 @@ CRITERIA = ("INEFFICIENCY", "APPROACH", "COMPLEXITY", "TRADEOFFS")
 MAX_PER_CRITERION = 5.0
 EVAL_VERSION = 1
 
+# Time bounds. A single evaluation can never take longer than WORST_CASE_SECONDS; callers that must finish inside a hard limit
+# (a serverless request) use it to decide whether another job may still be started.
+HTTP_TIMEOUT_S = 45         # per Gemini call
+ATTEMPTS = 3                # calls per evaluation (transient errors only)
+BACKOFF_MAX_S = 8           # longest wait between attempts
+WORST_CASE_SECONDS = ATTEMPTS * HTTP_TIMEOUT_S + (ATTEMPTS - 1) * BACKOFF_MAX_S
+
 SYSTEM_PROMPT = """You are a fair, rigorous teaching assistant scoring a student team's written "Autopsy Report"
 for a code-optimization competition. You score ONLY the quality of the written reasoning. You do NOT judge whether
 code is correct or fast; a separate deterministic judge does that.
@@ -114,7 +121,7 @@ def _real_generate(system: str, user: str) -> str:
     s = get_settings()
     if not s.gemini_api_key:
         raise PermanentError("Gemini is not configured")
-    client = genai.Client(api_key=s.gemini_api_key, http_options=types.HttpOptions(timeout=45000))
+    client = genai.Client(api_key=s.gemini_api_key, http_options=types.HttpOptions(timeout=HTTP_TIMEOUT_S * 1000))
     try:
         r = client.models.generate_content(
             model=s.gemini_model, contents=user,
@@ -135,11 +142,11 @@ def _real_generate(system: str, user: str) -> str:
 Generator = Callable[[str, str], str]
 
 
-def evaluate(ctx: EvalContext, generate: Generator = _real_generate, attempts: int = 3) -> EvalResponse:
+def evaluate(ctx: EvalContext, generate: Generator = _real_generate, attempts: int = ATTEMPTS) -> EvalResponse:
     """Calls the model, validates the structure, retries transient failures. Returns validated marks."""
 
     @retry(retry=retry_if_exception_type(TransientError), stop=stop_after_attempt(attempts),
-           wait=wait_exponential(multiplier=1, min=1, max=8), reraise=True)
+           wait=wait_exponential(multiplier=1, min=1, max=BACKOFF_MAX_S), reraise=True)
     def once() -> EvalResponse:
         raw = generate(SYSTEM_PROMPT, build_user_payload(ctx))
         try:

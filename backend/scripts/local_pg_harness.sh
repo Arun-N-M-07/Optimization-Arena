@@ -9,14 +9,19 @@ set -euo pipefail
 cmd="${1:?start|stop}"; dir="${2:?harness directory}"
 PGBIN="${PGBIN:-/opt/homebrew/opt/postgresql@16/bin}"
 PG_POOL="${PG_POOL:-4}"
+PG_OPTS="-p 54329 -c listen_addresses=127.0.0.1 -c unix_socket_directories='' -c max_connections=100"
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 mkdir -p "$dir"; dir="$(cd "$dir" && pwd)"
 
 case "$cmd" in
 start)
+  if [ -f "$dir/pg/PG_VERSION" ]; then      # restart an existing harness: data, schema and PgBouncer config are kept
+    "$PGBIN/pg_ctl" -D "$dir/pg" -o "$PG_OPTS" -l "$dir/pg.log" -w start >/dev/null
+    pgbouncer -d "$dir/pgbouncer.ini"
+    echo "harness restarted"; exit 0
+  fi
   "$PGBIN/initdb" -D "$dir/pg" -U postgres --auth=trust -E UTF8 >/dev/null
-  "$PGBIN/pg_ctl" -D "$dir/pg" -o "-p 54329 -c listen_addresses=127.0.0.1 -c unix_socket_directories='' -c max_connections=100" \
-    -l "$dir/pg.log" -w start >/dev/null
+  "$PGBIN/pg_ctl" -D "$dir/pg" -o "$PG_OPTS" -l "$dir/pg.log" -w start >/dev/null
   psql="$PGBIN/psql -h 127.0.0.1 -p 54329 -U postgres -v ON_ERROR_STOP=1 -q"
   $psql -d postgres <<'SQL'
 create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;

@@ -16,9 +16,21 @@ export default function Round1Admin() {
   const subs = useLoad<Sub[]>("/admin/submissions?round=1");
   const evs = useLoad<Ev[]>("/admin/evaluations");
   const [msg, setMsg] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const r1 = rounds.data?.[0];
   const refresh = () => { void rounds.reload(); void subs.reload(); void evs.reload(); };
-  async function act(fn: () => Promise<unknown>) { setMsg(null); try { await fn(); refresh(); } catch (e) { setMsg(errText(e)); } }
+  async function act(fn: () => Promise<unknown>) { setMsg(null); setNote(null); try { await fn(); refresh(); } catch (e) { setMsg(errText(e)); } }
+  // One press evaluates a bounded batch inside the request time limit; say plainly when more is waiting so nobody assumes it finished.
+  async function runPending() {
+    setMsg(null); setNote(null);
+    try {
+      const r = await api<{ counts: Record<string, number>; waiting: number }>("/admin/evaluations/run-pending", { method: "POST" });
+      const tried = Object.entries(r.counts).reduce((a, [k, n]) => a + (k === "SKIPPED" ? 0 : n), 0);
+      setNote(tried === 0 && r.waiting === 0 ? "Nothing is waiting for evaluation."
+        : `Attempted ${tried}: ${r.counts.COMPLETED ?? 0} completed${r.counts.FAILED ? `, ${r.counts.FAILED} failed (still retryable)` : ""}.${r.waiting ? ` ${r.waiting} more still waiting — press again.` : ""}`);
+      refresh();
+    } catch (e) { setMsg(errText(e)); }
+  }
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between"><h1 className="text-2xl font-semibold tracking-tight">Round 1 operations</h1><Button variant="ghost" onClick={refresh}>Refresh</Button></div>
@@ -31,7 +43,8 @@ export default function Round1Admin() {
             <td><StatusBadge status={s.provider === "mock" ? "MOCK" : s.outcome} /></td><td><StatusBadge status={s.report_status} /></td></tr>)}
             {subs.data?.length === 0 && <tr><td colSpan={5} className="py-3 text-muted">No assignments yet.</td></tr>}</tbody></table></div>
       </Card>
-      <Card title="Report evaluations" action={<Button variant="ghost" onClick={() => act(() => api("/admin/evaluations/run-pending", { method: "POST" }))}>Run pending now</Button>}>
+      <Card title="Report evaluations" action={<Button variant="ghost" onClick={() => void runPending()}>Run pending now</Button>}>
+        {note && <p role="status" className="mb-3 text-sm text-muted">{note}</p>}
         <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs text-muted uppercase"><tr><th className="py-2">Team</th><th>Question</th><th>AI</th><th>Attempts</th><th>Judge</th><th /></tr></thead>
           <tbody>{evs.data?.map((e) => <tr key={e.report_id} className="border-t border-line/60"><td className="py-2">#{e.team_number}</td><td>{e.title}</td>
             <td><StatusBadge status={e.ai_status ?? "PENDING"} />{e.needs_review && <span className="ml-1 text-xs text-amber-300">flagged</span>}{e.error && <div className="text-xs text-danger">{e.error}</div>}</td>

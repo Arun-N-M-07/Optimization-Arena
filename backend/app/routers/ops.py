@@ -287,7 +287,14 @@ def queue_evaluation(report_id: UUID, background: BackgroundTasks, user: Current
 
 @router.post("/evaluations/run-pending")
 def run_pending(user: CurrentUser = Depends(admin)):
-    return evaluation.run_pending()
+    """Evaluate waiting reports without ever outliving the request: at most RUN_PENDING_LIMIT jobs, a few at a time, and no job is
+    started that could not finish inside the budget. Anything not attempted stays waiting (nothing is lost or duplicated): press again."""
+    budget = float(os.getenv("RUN_PENDING_BUDGET_SECONDS", evaluation.RUN_PENDING_BUDGET_SECONDS))
+    total = evaluation.count_eligible()
+    done = evaluation.run_pending(limit=evaluation.RUN_PENDING_LIMIT, budget_seconds=budget, workers=evaluation.RUN_PENDING_WORKERS)
+    counts = {s: sum(1 for v in done.values() if v == s) for s in sorted(set(done.values()))}     # SKIPPED = handled by a concurrent run
+    waiting = max(0, total - len(done))
+    return {"processed": done, "counts": counts, "waiting": waiting, "complete": waiting == 0}
 
 
 # ---------------- manual scores (viva, bonus, round 2 judging) ----------------

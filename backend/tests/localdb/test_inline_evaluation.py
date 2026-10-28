@@ -100,7 +100,8 @@ def test_admin_retry_completes_once_and_repeat_retries_change_nothing(env, raw):
     for _ in range(3):
         assert retry(w).json()["status"] == "COMPLETED"
     assert ev.calls == calls and counts(raw, w) == (1, 4)                           # the model is not called again; no duplicates
-    assert TestClient(app).post("/api/admin/evaluations/run-pending", headers={"Authorization": "Bearer x"}).json() == {}
+    assert TestClient(app).post("/api/admin/evaluations/run-pending", headers={"Authorization": "Bearer x"}).json() == {
+        "processed": {}, "counts": {}, "waiting": 0, "complete": True}
 
 
 def test_successful_inline_submit_scores_in_the_same_request_and_resubmit_is_idempotent(env, raw):
