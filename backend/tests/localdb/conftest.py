@@ -5,7 +5,7 @@ DATABASE_URL pointing at the real project can never be written to by these tests
 """
 import os
 import uuid
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import psycopg
 import pytest
@@ -14,6 +14,20 @@ DIRECT = os.getenv("ARENA_LOCAL_DIRECT_URL", "postgresql://postgres@127.0.0.1:54
 TX = os.getenv("ARENA_LOCAL_TX_URL", "postgresql://postgres@127.0.0.1:54330/arena_tx")          # transaction pooling (Supabase :6543)
 SESS = os.getenv("ARENA_LOCAL_SESS_URL", "postgresql://postgres@127.0.0.1:54330/arena_sess")    # session pooling (Supabase :5432)
 ADMIN = os.getenv("ARENA_LOCAL_PGBOUNCER_ADMIN_URL", "postgresql://postgres@127.0.0.1:54330/pgbouncer")
+
+
+_LIBPQ_TARGET_OVERRIDES = {"host", "hostaddr", "service", "servicefile", "passfile"}   # query parameters libpq lets override the URL host
+
+
+def assert_local(url: str) -> str:
+    u = urlparse(url)
+    assert u.hostname in ("127.0.0.1", "localhost", "::1"), f"refusing to use non-local database host {u.hostname!r}"
+    assert not (_LIBPQ_TARGET_OVERRIDES & set(parse_qs(u.query))), "refusing a URL whose query string can override the target host"
+    return url
+
+
+for _u in (DIRECT, TX, SESS, ADMIN):          # fails at import, before any test can connect, if an env override points off-machine
+    assert_local(_u)
 
 
 def pytest_collection_modifyitems(config, items):
@@ -25,10 +39,17 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 
 
-def assert_local(url: str) -> str:
-    host = urlparse(url).hostname
-    assert host in ("127.0.0.1", "localhost", "::1"), f"refusing to use non-local database host {host!r}"
-    return url
+@pytest.fixture(autouse=True)
+def _no_real_credentials(monkeypatch):
+    """The repo-root .env (real Supabase/Gemini values) is loaded when `app` is imported. These tests must not be able to use
+    any of it, even by mistake: replace it with inert local values for the duration of every localdb test."""
+    from app import config
+    for k, v in {"DATABASE_URL": DIRECT, "NEXT_PUBLIC_SUPABASE_URL": "http://127.0.0.1:9", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "local-inert",
+                 "SUPABASE_SECRET_KEY": "local-inert", "GEMINI_API_KEY": "local-inert"}.items():
+        monkeypatch.setenv(k, v)
+    config.get_settings.cache_clear()
+    yield
+    config.get_settings.cache_clear()
 
 
 @pytest.fixture

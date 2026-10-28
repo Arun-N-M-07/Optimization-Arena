@@ -202,3 +202,12 @@ def test_negative_control_named_prepared_statements_DO_break_behind_the_pooler(u
     for i in range(30):                                                       # the app's own settings: never a prepared statement
         with db.admin_tx() as c:
             assert c.execute(text("select cast(:i as int)"), {"i": i}).scalar() == i
+
+
+def test_use_db_refuses_any_non_local_database(use_db):
+    for remote in ("postgresql://postgres.abc:pw@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres",
+                   "postgresql://postgres:pw@db.abc.supabase.co:5432/postgres", "postgresql://u@10.0.0.5/db"):
+        with pytest.raises(AssertionError, match="refusing"):
+            use_db(remote)
+    from app.config import get_settings
+    assert "supabase.com" not in get_settings().database_url and get_settings().gemini_api_key == "local-inert"
