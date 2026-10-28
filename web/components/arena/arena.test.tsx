@@ -43,6 +43,25 @@ describe("ReportForm", () => {
     expect(onAmend).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ["PENDING", /queued or running/, "Evaluating"],
+    ["DELAYED", /did not finish.*retry.*do not need to resubmit/, "Evaluation delayed"],
+    ["COMPLETE", /has been evaluated/, "Evaluating"],
+  ] as const)("tells a submitted participant the real evaluation state: %s", (state, text, badge) => {
+    render(<ReportForm {...props} value={FULL} onChange={() => {}} status={state === "COMPLETE" ? "EVALUATED" : "EVALUATION_PENDING"} evaluation={state} />);
+    expect(screen.getByTestId("evaluation-status")).toHaveTextContent(text);
+    expect(screen.getByTestId("evaluation-status")).toHaveAttribute("data-state", state);
+    if (state !== "COMPLETE") expect(screen.getByText(badge)).toBeInTheDocument();
+  });
+
+  it("never claims the evaluation succeeded after a failure, and says nothing for drafts", () => {
+    const { rerender } = render(<ReportForm {...props} value={FULL} onChange={() => {}} status="EVALUATION_PENDING" evaluation="DELAYED" />);
+    expect(screen.getByTestId("evaluation-status")).not.toHaveTextContent(/has been evaluated/);
+    expect(screen.queryByText("Evaluating")).not.toBeInTheDocument();
+    rerender(<ReportForm {...props} value={FULL} onChange={() => {}} status="DRAFT" evaluation={null} />);
+    expect(screen.queryByTestId("evaluation-status")).not.toBeInTheDocument();
+  });
+
   it("shows save errors and server errors", () => {
     render(<ReportForm {...props} value={FULL} onChange={() => {}} status="DRAFT" saveState="error" saveError="offline" error="Round 1 is not open" />);
     expect(screen.getByText(/Could not save: offline/)).toBeInTheDocument();

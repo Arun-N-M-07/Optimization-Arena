@@ -11,10 +11,17 @@ export const SECTIONS = [
 ] as const;
 export type SectionKey = (typeof SECTIONS)[number]["key"];
 export type ReportValue = Record<SectionKey, string>;
+export type EvaluationState = "PENDING" | "DELAYED" | "COMPLETE" | null | undefined;
+// What the participant is told once a report is submitted. HTTP success only means "saved": these say what evaluation has actually done.
+export const EVALUATION_NOTES: Record<"PENDING" | "DELAYED" | "COMPLETE", string> = {
+  PENDING: "Your report is submitted. Automatic evaluation is queued or running.",
+  DELAYED: "Your report is submitted and safe, but automatic evaluation did not finish. The organisers will retry it — you do not need to resubmit.",
+  COMPLETE: "Your report is submitted and has been evaluated. Marks are released by the organisers after the round.",
+};
 export const STEPS = ["DRAFT", "SUBMITTED", "EVALUATION_PENDING", "EVALUATED", "REVIEWED"] as const;
 
-export function ReportForm({ value, onChange, max, min, status, saveState, saveError, onSubmit, onAmend, busy, error, canEdit }: {
-  value: ReportValue; onChange: (v: ReportValue) => void; max: number; min: number; status: string; saveState: SaveState; saveError?: string | null;
+export function ReportForm({ value, onChange, max, min, status, evaluation, saveState, saveError, onSubmit, onAmend, busy, error, canEdit }: {
+  value: ReportValue; onChange: (v: ReportValue) => void; max: number; min: number; status: string; evaluation?: EvaluationState; saveState: SaveState; saveError?: string | null;
   onSubmit: () => void; onAmend: () => void; busy: boolean; error: string | null; canEdit: boolean;
 }) {
   const locked = status !== "DRAFT";
@@ -23,8 +30,14 @@ export function ReportForm({ value, onChange, max, min, status, saveState, saveE
   return (
     <div className="space-y-4" data-testid="report-form">
       <ol className="flex flex-wrap gap-2 text-xs" aria-label="Report status">
-        {STEPS.map((s) => <li key={s} className={STEPS.indexOf(s) <= STEPS.indexOf(status as (typeof STEPS)[number]) ? "" : "opacity-40"}><StatusBadge status={s} /></li>)}
+        {STEPS.map((s) => <li key={s} className={STEPS.indexOf(s) <= STEPS.indexOf(status as (typeof STEPS)[number]) ? "" : "opacity-40"}>
+          <StatusBadge status={s === "EVALUATION_PENDING" && evaluation === "DELAYED" ? "EVALUATION_DELAYED" : s} /></li>)}
       </ol>
+      {locked && evaluation && (
+        <p role="status" data-testid="evaluation-status" data-state={evaluation} className={`rounded-md border px-3 py-2 text-sm ${evaluation === "DELAYED" ? "border-danger/60 text-danger" : "border-line text-muted"}`}>
+          {EVALUATION_NOTES[evaluation]}
+        </p>
+      )}
       {SECTIONS.map((s) => {
         const len = value[s.key].length;
         const tooShort = !locked && short.includes(s.key) && len > 0;

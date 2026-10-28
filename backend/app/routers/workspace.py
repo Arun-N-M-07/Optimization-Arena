@@ -173,12 +173,31 @@ def _latest_report(c, team: str, variant_id: UUID, lock: bool = False) -> dict |
                t=team, v=str(variant_id))
 
 
+def _with_state(c, report: dict | None) -> dict | None:
+    """Adds `evaluation_state`, the ONLY thing a participant learns about the automatic evaluation (never marks, errors or attempts):
+    None (still a draft) | PENDING (queued or running) | DELAYED (the last attempt failed; organisers retry, nothing to resubmit) | COMPLETE.
+    Needs an admin connection: report_evaluations is staff-only under RLS, so a participant connection would always read 'no row'."""
+    if not report:
+        return report
+    if report["status"] == "DRAFT":
+        state = None
+    elif report["status"] in ("EVALUATED", "REVIEWED"):
+        state = "COMPLETE"
+    else:
+        ev = one(c, "select status from public.report_evaluations where report_id = :r and source = 'AI'", r=str(report["id"]))
+        state = "DELAYED" if ev and ev["status"] == "FAILED" else "PENDING"
+    return {**report, "evaluation_state": state}
+
+
 @router.get("/variants/{variant_id}/report")
 def get_report(variant_id: UUID, user: CurrentUser = Depends(participant)):
     team = _team(user)
-    with user_tx(user) as c:
+    with user_tx(user) as c:       # RLS decides which report the caller may see...
         r = _latest_report(c, team, variant_id)
-        return {"report": r, "limits": {"max": SECTION_MAX, "min_to_submit": SECTION_MIN_TO_SUBMIT}}
+    if r:
+        with admin_tx() as c:      # ...then only a coarse status is added for exactly that report
+            r = _with_state(c, r)
+    return {"report": r, "limits": {"max": SECTION_MAX, "min_to_submit": SECTION_MIN_TO_SUBMIT}}
 
 
 @router.put("/variants/{variant_id}/report")
@@ -217,7 +236,7 @@ def submit_report(variant_id: UUID, background: BackgroundTasks, user: CurrentUs
         if not cur:
             raise HTTPException(422, "Write the report first")
         if cur["status"] != "DRAFT":
-            return {"report": cur, "already_submitted": True}     # idempotent
+            return {"report": _with_state(c, cur), "already_submitted": True}     # idempotent
         short = [k for k in ("inefficiency", "approach", "complexity", "tradeoffs") if len(cur[k].strip()) < SECTION_MIN_TO_SUBMIT]
         if short:
             raise HTTPException(422, {"message": f"Each section needs at least {SECTION_MIN_TO_SUBMIT} characters", "sections": short})
@@ -230,7 +249,7 @@ def submit_report(variant_id: UUID, background: BackgroundTasks, user: CurrentUs
         job = evaluation.ensure_job(c, cur["id"])
         c.execute(text("update public.autopsy_reports set status = 'EVALUATION_PENDING' where id = :id"), {"id": str(cur["id"])})
         audit(c, user, "report.submit", "report", cur["id"], {"variant": str(variant_id), "version": cur["version"]})
-        report = _latest_report(c, team, variant_id)
+        report = _with_state(c, _latest_report(c, team, variant_id))
     if job:
         # background (default): runs after the response. inline: runs inside the request (use on serverless hosts that
         # freeze work after the response). manual: an admin triggers it. A failure never blocks the participant.
@@ -240,8 +259,8 @@ def submit_report(variant_id: UUID, background: BackgroundTasks, user: CurrentUs
                 evaluation.run_job(job)
             except Exception:
                 pass
-            with admin_tx() as c:
-                report = _latest_report(c, team, variant_id)
+            with admin_tx() as c:        # the HTTP 200 only means "the report is saved"; the state below says what evaluation did
+                report = _with_state(c, _latest_report(c, team, variant_id))
         elif mode == "background":
             background.add_task(evaluation.run_job, job)
         # worker / manual: the persisted PENDING job is processed by the worker process or by an admin

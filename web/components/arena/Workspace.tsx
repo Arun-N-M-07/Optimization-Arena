@@ -7,7 +7,7 @@ import { errText } from "@/lib/useLoad";
 import { Button } from "@/components/ui";
 import { StatusBadge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
-import { ReportForm, type ReportValue } from "./ReportForm";
+import { ReportForm, type EvaluationState, type ReportValue } from "./ReportForm";
 import { ResultPanel, type RunResult } from "./ResultPanel";
 
 export type Question = {
@@ -17,7 +17,7 @@ export type Question = {
 };
 type Sub = { id: string; kind: string; language: string; code: string; created_at: string; outcome: string | null; passed_visible: number | null;
   total_visible: number | null; passed_hidden: number | null; total_hidden: number | null; runtime_ms: number | null; safe_message: string | null; provider: string | null; is_mock: boolean };
-type Report = { id: string; version: number; status: string } & ReportValue;
+type Report = { id: string; version: number; status: string; evaluation_state?: EvaluationState } & ReportValue;
 type ReportResp = { report: Report | null; limits: { max: number; min_to_submit: number } };
 
 const EMPTY: ReportValue = { inefficiency: "", approach: "", complexity: "", tradeoffs: "" };
@@ -171,7 +171,7 @@ export function Workspace({ q, open, showReport }: { q: Question; open: boolean;
 function ReportTab({ q, open }: { q: Question; open: boolean }) {
   const base = `/participant/variants/${q.variant_id}/report`;
   const [value, setValue] = useState<ReportValue>(EMPTY);
-  const [meta, setMeta] = useState<{ id?: string; status: string; version: number; max: number; min: number } | null>(null);
+  const [meta, setMeta] = useState<{ id?: string; status: string; evaluation: EvaluationState; version: number; max: number; min: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -179,7 +179,7 @@ function ReportTab({ q, open }: { q: Question; open: boolean }) {
   const apply = useCallback((r: ReportResp) => {
     const v = toValue(r.report);
     setValue(v);
-    setMeta({ id: r.report?.id, status: r.report?.status ?? "DRAFT", version: r.report?.version ?? 1, max: r.limits.max, min: r.limits.min_to_submit });
+    setMeta({ id: r.report?.id, status: r.report?.status ?? "DRAFT", evaluation: r.report?.evaluation_state ?? null, version: r.report?.version ?? 1, max: r.limits.max, min: r.limits.min_to_submit });
     return v;
   }, []);
   const load = useCallback(async () => apply(await api<ReportResp>(base)), [apply, base]);
@@ -199,6 +199,14 @@ function ReportTab({ q, open }: { q: Question; open: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base]);
 
+  // While evaluation can still change (queued, or delayed and awaiting a retry) keep the status fresh without a manual reload.
+  const waiting = meta?.evaluation === "PENDING" || meta?.evaluation === "DELAYED";
+  useEffect(() => {
+    if (!waiting) return;
+    const t = window.setInterval(() => { void load().catch(() => {}); }, 15000);
+    return () => window.clearInterval(t);
+  }, [waiting, load]);
+
   async function submit() {
     if (!window.confirm("Submit this report? A submitted report cannot be edited (you can create a new version while the round is open).")) return;
     setBusy(true); setErr(null);
@@ -212,7 +220,7 @@ function ReportTab({ q, open }: { q: Question; open: boolean }) {
   return (
     <div>
       <p className="mb-3 text-xs text-muted">Version {meta.version}. Evaluation marks are released by the organisers after the round.</p>
-      <ReportForm value={value} onChange={setValue} max={meta.max} min={meta.min} status={meta.status} saveState={autosave.state} saveError={autosave.error}
+      <ReportForm value={value} onChange={setValue} max={meta.max} min={meta.min} status={meta.status} evaluation={meta.evaluation} saveState={autosave.state} saveError={autosave.error}
         onSubmit={() => void submit()} onAmend={() => void amend()} busy={busy} error={err} canEdit={open} />
     </div>
   );
