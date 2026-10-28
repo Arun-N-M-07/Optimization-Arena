@@ -279,6 +279,8 @@ def queue_evaluation(report_id: UUID, background: BackgroundTasks, user: Current
         evaluation.ensure_job(c, report_id)
         ev = one(c, "select id, status, attempts from public.report_evaluations where report_id = :r and source = 'AI'", r=str(report_id))
         audit(c, user, "evaluation.retry", "report", report_id)
+    if os.getenv("EVALUATION_MODE", "background") == "inline":    # serverless: work scheduled after the response may be frozen
+        return {"evaluation_id": ev["id"], "status": evaluation.run_job(ev["id"])}
     background.add_task(evaluation.run_job, ev["id"])
     return {"evaluation_id": ev["id"], "status": ev["status"]}
 

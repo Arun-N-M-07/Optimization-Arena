@@ -1,0 +1,14 @@
+# Keep tests, scripts, local secrets and container/Railway config out of the Vercel Function bundle.
+tests
+scripts
+.env
+.env.*
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+Dockerfile
+.dockerignore
+railway*.json
+requirements-dev.txt
+requirements.lock

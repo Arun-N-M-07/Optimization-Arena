@@ -395,3 +395,45 @@ def test_public_cache_ttl_and_clear():
     assert [pubcache.cached("x", f) for _ in range(3)] == [1, 1, 1]
     pubcache.clear()
     assert pubcache.cached("x", f) == 2
+
+
+# ---------------- serverless (Vercel) evaluation mode ----------------
+def _retry_call(monkeypatch, mode):
+    """Admin 'retry evaluation' with the DB and the job runner faked; returns (response json, run_job calls)."""
+    from contextlib import contextmanager
+    from uuid import uuid4
+
+    from app.auth import CurrentUser, current_user
+    calls = []
+
+    @contextmanager
+    def fake_tx():
+        yield None
+
+    answers = iter([{"status": "SUBMITTED"}, {"id": "ev-1", "status": "FAILED", "attempts": 1}])
+    monkeypatch.setattr(ops, "admin_tx", fake_tx)
+    monkeypatch.setattr(ops, "one", lambda *a, **k: next(answers))
+    monkeypatch.setattr(ops, "audit", lambda *a, **k: None)
+    monkeypatch.setattr(ops.evaluation, "ensure_job", lambda *a, **k: None)
+    monkeypatch.setattr(ops.evaluation, "run_job", lambda eid: calls.append(eid) or "COMPLETED")
+    if mode:
+        monkeypatch.setenv("EVALUATION_MODE", mode)
+    else:
+        monkeypatch.delenv("EVALUATION_MODE", raising=False)
+    app.dependency_overrides[current_user] = lambda: CurrentUser(uuid4(), "a@example.com", "ADMIN", None)
+    try:
+        r = TestClient(app).post(f"/api/admin/reports/{uuid4()}/evaluate", headers={"Authorization": "Bearer x"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 200
+    return r.json(), calls
+
+
+def test_admin_retry_runs_inside_the_request_in_inline_mode(monkeypatch):
+    body, calls = _retry_call(monkeypatch, "inline")
+    assert calls == ["ev-1"] and body == {"evaluation_id": "ev-1", "status": "COMPLETED"}
+
+
+def test_admin_retry_still_uses_a_background_task_otherwise(monkeypatch):
+    body, calls = _retry_call(monkeypatch, None)       # TestClient runs background tasks before returning
+    assert calls == ["ev-1"] and body["status"] == "FAILED"     # response reports the status at queue time
