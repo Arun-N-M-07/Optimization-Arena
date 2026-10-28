@@ -10,7 +10,7 @@ from sqlalchemy.exc import InterfaceError, OperationalError
 
 from .auth import CurrentUser, current_user, require_roles
 from .config import get_settings
-from .middleware import AccessLog, BodyLimit, RateLimit, SecurityHeaders
+from .middleware import AccessLog, BodyLimit, RateLimit, SecurityHeaders, rate_limit_settings
 from .routers import assignments, ops, participant, public, questions, review, teams, workspace
 from .settings_check import is_production, validate
 
@@ -40,7 +40,7 @@ app = FastAPI(title="The Optimization Arena API", version="0.4.0", lifespan=life
               docs_url=None if PROD else "/docs", redoc_url=None, openapi_url=None if PROD else "/openapi.json")
 # Outermost first: log everything, then cap body size, then rate limit, then add headers.
 app.add_middleware(SecurityHeaders, hsts=PROD)
-app.add_middleware(RateLimit)
+app.add_middleware(RateLimit, **rate_limit_settings())
 app.add_middleware(BodyLimit)
 app.add_middleware(AccessLog)
 # No CORS middleware on purpose: the browser only talks to the API through the same-origin /api rewrite.

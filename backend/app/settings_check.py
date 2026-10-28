@@ -31,4 +31,9 @@ def validate(s: Settings) -> list[str]:
         problems.append(f"EVALUATION_MODE must be one of {sorted(EVAL_MODES)}")
     if not s.gemini_api_key and os.getenv("EVALUATION_MODE", "background") != "manual":
         problems.append("GEMINI_API_KEY is not set (reports would never be evaluated); set EVALUATION_MODE=manual to run without AI")
+    for name, lo, hi in (("TRUSTED_PROXY_HOPS", 0, 5), ("RATE_LIMIT_AUTHED_PER_MINUTE", 1, 1_000_000), ("RATE_LIMIT_ANON_PER_MINUTE", 1, 1_000_000),
+                         ("RATE_LIMIT_PUBLIC_PER_MINUTE", 1, 10_000_000)):
+        raw = os.getenv(name)
+        if raw is not None and not (raw.strip().lstrip("-").isdigit() and lo <= int(raw) <= hi):
+            problems.append(f"{name} must be an integer between {lo} and {hi}")
     return problems
